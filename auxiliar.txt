@@ -1,0 +1,84 @@
+
+netlib-src ="0.8.0"
+ndarray-linalg = "0.16.0"
+
+
+
+(3, 4)                          // Shape 3 x 4 with default order (RowMajor)
+((3, 4), Order::RowMajor))      // use specific order
+((3, 4), Order::ColumnMajor))   // use specific order
+((3, 4), Order::C))             // use shorthand for order - shorthands C and F
+Example
+use ndarray::{aview1, aview2};
+use ndarray::Order;
+
+assert!(
+    aview1(&[1., 2., 3., 4.]).into_shape_with_order((2, 2)).unwrap()
+    == aview2(&[[1., 2.],
+                [3., 4.]])
+);
+
+assert!(
+    aview1(&[1., 2., 3., 4.]).into_shape_with_order(((2, 2), Order::ColumnMajor)).unwrap()
+    == aview2(&[[1., 3.],
+                [2., 4.]])
+);
+
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ Outra :::::
+
+into_dyn method).
+
+use ndarray::{ArrayD, Ix2, IxDyn};
+
+// Create a dynamic dimensionality array and convert it to an Array2
+// (Ix2 dimension type).
+
+let array = ArrayD::<f64>::zeros(IxDyn(&[10, 10]));
+
+assert!(array.into_dimensionality::<Ix2>().is_ok());
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+fn(&self, E) -> Result<ArrayBase<CowRepr<'_, A>, <E as ShapeArg>::Dim>, ShapeError>
+
+Transform the array into new_shape; any shape with the same number of elements is accepted.
+
+order specifies the logical order in which the array is to be read and reshaped. The array is returned as a CowArray; a view if possible, otherwise an owned array.
+
+For example, when starting from the one-dimensional sequence 1 2 3 4 5 6, it would be understood as a 2 x 3 array in row major ("C") order this way:
+
+1 2 3
+4 5 6
+and as 2 x 3 in column major ("F") order this way:
+
+1 3 5
+2 4 6
+This example should show that any time we "reflow" the elements in the array to a different number of rows and columns (or more axes if applicable), it is important to pick an index ordering, and that's the reason for the function parameter for order.
+
+The new_shape parameter should be a dimension and an optional order like these examples:
+
+(3, 4)                          // Shape 3 x 4 with default order (RowMajor)
+((3, 4), Order::RowMajor))      // use specific order
+((3, 4), Order::ColumnMajor))   // use specific order
+((3, 4), Order::C))             // use shorthand for order - shorthands C and F
+Errors if the new shape doesn't have the same number of elements as the array's current shape.
+
+Example
+use ndarray::array;
+use ndarray::Order;
+
+assert!(
+    array![1., 2., 3., 4., 5., 6.].to_shape(((2, 3), Order::RowMajor)).unwrap()
+    == array![[1., 2., 3.],
+              [4., 5., 6.]]
+);
+
+assert!(
+    array![1., 2., 3., 4., 5., 6.].to_shape(((2, 3), Order::ColumnMajor)).unwrap()
+    == array![[1., 3., 5.],
+              [2., 4., 6.]]
+);
+
+
