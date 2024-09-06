@@ -3,6 +3,7 @@ use std::fmt::{Debug  };
 use std::{iter, usize};
 use std::iter::{zip}; 
 
+use faer::reborrow::IntoConst;
 use faer::{mat , Mat };
 use faer_ext::*;
 
@@ -28,12 +29,28 @@ fn type_of<T>(_: T) -> &'static str {
 // type ndarray1 = ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>>;
 // type ndarray2 = ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 2]>>;
 
+fn nd_pseudo_inverse ( nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >>  ) 
+                                                -> ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> 
+                                                
+{
+    let faer_tensor = ndarray_2_faer(nd_tensor) ;
+    let svd = faer_tensor.svd() ;
+    let pseudo = svd.pseudoinverse();
 
-// <S1 : ndarray::Data , D >
+    
+    let nd_tensor = faer_2_ndarray(pseudo.clone());
+    
+        
+
+    nd_tensor
+}
+
+
 fn ndarray_2_faer( nd_tensor  : ArrayBase<ndarray::OwnedRepr<f64>, Dim<[usize; 2]>> )
 -> Mat<f64> 
 // where S1: RawData<Elem = f64>  , D : Dimension , 
 {
+    
     // println!("O nd-array de Entrada foi :\n{:?}" , &nd_tensor );
 
     let rows    = nd_tensor.shape()[0];
@@ -54,6 +71,36 @@ fn ndarray_2_faer( nd_tensor  : ArrayBase<ndarray::OwnedRepr<f64>, Dim<[usize; 2
 
     I_faer
 }
+
+fn faer_2_ndarray( faer_tensor  : Mat<f64> )
+        -> ArrayBase<ndarray::OwnedRepr<f64>, Dim<[usize; 2]>>
+        // where S1: RawData<Elem = f64>  , D : Dimension , 
+    {
+        println!("O faer_tensor de Entrada foi :\n{:?}" , &faer_tensor );
+
+
+        let rows: usize    = faer_tensor.shape().0 ;
+        let columns: usize = faer_tensor.shape().1;
+
+
+        let mut nd_tensor = Array2::<f64>::zeros((rows, columns));
+        
+        // let mut I_faer = Mat::<f64>::identity(rows, columns);
+        
+        for i in 0..rows {
+            // println!("Linha :{i}");
+            for j in 0..columns {
+                // println!("Coluna {j}");
+                // I_faer[[i,j].into()] = nd_tensor[[i , j]] ;
+                nd_tensor[[i , j]] = faer_tensor[[i,j].into()] ; 
+            }
+        }
+
+
+        println!("O nd_tensor de Saída foi :\n{:?}" , &nd_tensor );
+
+        nd_tensor
+    }
 
 
 struct in_ts<T1:std::iter::Iterator >
@@ -93,7 +140,7 @@ where T1 : Into<f64>,
 
 }
 
-fn product_khatri_Rao(  a_ts :  ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> , 
+fn product_khatri_rao(  a_ts :  ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> , 
                            b_ts : &ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 2]>> ) 
                            ->      ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 2]>> 
                            
@@ -175,7 +222,7 @@ fn main() {
     let a3 = in_ts {ts : a2.into_iter()};// .iter()};
     // product_Kronecker_1d(a3 , &b);
 
-    let ts = product_khatri_Rao( b.clone()  , &b);
+    let ts = product_khatri_rao( b.clone()  , &b);
 
     // println!("O Resultado do Produto Katri-Rao é igual a :\n\n{:?}" , ts[[1 , 0]] );
 
@@ -184,22 +231,26 @@ fn main() {
 
     // println!("O Faer não alterado : \n{:?}" , I_faer[[0,0].into()] );
 
-     ndarray_2_faer(ts);
-
+    
+    let faer_new = ndarray_2_faer(ts);
+    
     let x = mat![
     [10.0, 3.0],
     [2.0, -10.0],
     [3.0, -45.0],
     ];
 
+    let nd_new = faer_2_ndarray(x.clone());
+
     let svd = x.svd();
     let ps = svd.pseudoinverse();
     // println!("svd : \n{:?}" , svd );
     // println!("ps : \n{:?}" , ps );
 
+    let nd_pseudo = nd_pseudo_inverse(nd_new);
+    
 
-
-
+    println!("Ultima matrix :\n{:?}" , nd_pseudo );
 
 
 //++++++++++++++++++++++++++++++++++++++++::::BANIDO:::+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
