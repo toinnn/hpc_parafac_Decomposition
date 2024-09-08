@@ -406,21 +406,21 @@ fn main() {
     //     [1.0, 2.0],
     //     [3.0, 4.0]
     //     ];
-    let a = array![
-        [-3.0  , -5.0 ],
-        [-12.0 , -13.0]];
+    // let a = array![
+    //     [-3.0  , -5.0 ],
+    //     [-12.0 , -13.0]];
 
-    let b = array![
-        [1.0, 2.0],
-        [3.0, 4.0]
-        ];
-    let a2 = array![
-        [[3.0 , 5.0],
-        [12.0 , 13.0]] ,
+    // let b = array![
+    //     [1.0, 2.0],
+    //     [3.0, 4.0]
+    //     ];
+    // let a2 = array![
+    //     [[3.0 , 5.0],
+    //     [12.0 , 13.0]] ,
 
-        [[-3.0 , -5.0],
-        [-12.0 , -13.0]]
-    ];
+    //     [[-3.0 , -5.0],
+    //     [-12.0 , -13.0]]
+    // ];
     // let teste = product_hadamard(&a,&b) ; 
     // let c = &a*&b;
     // let d = &a.dot(&b) ;
@@ -461,7 +461,13 @@ fn main() {
     // println!("Ultima matrix :\n{:?}" , nd_pseudo );
 
     // println!("a.dot(b) = :\n{:?}\n\nb.dot(&a) :\n{:?}" , a.dot(&b) , b.dot(&a) );
-
+    
+    //++++++++CÓDIGO RESPONSÁVEL POR CONTROLAR O TAMANHO DA MEMÓRIA STACK ASSOCIADA A ESSE PROGRAMA +++++++++++++
+    const N: usize = 1_000_000;
+    
+    std::thread::Builder::new()
+        .stack_size(size_of::<f64>() * N)
+        .spawn(||{
     
     let nd_teste = array![ [[1.0  , 2.0 , 3.0  ]   ,
                                                           [2.0  , 4.0 , 5.0  ] ] ,
@@ -473,10 +479,13 @@ fn main() {
 
     // println!("O tensor a matricializado : \n{:?}" , mt_ts);
 
-
+    let before = Instant::now();
     parafac_decomposition(nd_teste , 6 , 20 );
+    let after = Instant::now();
+    println!("\nTime elapsed: {:?}", after.duration_since(before));
     // println!("{:?} ", &a);
-
+    
+    }).unwrap().join().unwrap();
 //++++++++++++++++++++++++++++++++++++++++::::BANIDO:::+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
