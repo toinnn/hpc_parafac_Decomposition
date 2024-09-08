@@ -1,9 +1,11 @@
 use std::fmt::{Debug  };
+use std::convert::TryFrom;
 
 // use std::simd::usizex32;
 use std::{iter, usize};
 use std::iter::{zip}; 
 
+use faer::reborrow::IntoConst;
 // use faer::reborrow::IntoConst;
 use faer::{mat , Mat };
 use faer_ext::*;
@@ -39,31 +41,47 @@ fn matricilyze_tensor( nd_tensor  : &ArrayBase< ndarray::OwnedRepr<f64> , Dim< [
 {   
     println!("A entrada foi : \n{:?}", &nd_tensor);
 
-    let mut result: Vec<ArrayBase<CowRepr<f64>, Dim<[usize; 2]>>>  = Vec::new(); 
-    let mut out2: Vec<ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>>> = vec![array![[1.0 , 2.0 ],
-                                                                  [3.0 , 4.0 ]] ];
+    let mut result : Vec<ArrayBase<CowRepr<f64>, Dim<[usize; 2]>>>  = Vec::new(); 
+    let mut result2: Vec<ArrayBase<CowRepr<f64>, Dim<[usize; 2]>>>  = Vec::new();
 
     //++++++++++++++++ GAMBIARRA PARA CONSERTAR O FUNCIONAMENTO DO INDEX_AXIS QUE SÓ FUNCIONA CORRETAMENTE EM N == 2 :+++++++++
     let mut perm_order = [0 , 1 , 2 ];
+    let mut for_range: i32 = nd_tensor.shape()[n].try_into().unwrap() ;
+
     let mut vet_len = &0 ;
     match n{
-        0 => perm_order = [ 0 , 2 , 1 ] ,
-        1 => perm_order = [ 0 , 1 , 2 ] ,
-        2 => perm_order = [ 1 , 0 , 2 ] ,
+        0 => {  perm_order = [ 0 , 2 , 1 ] ;
+                for_range = nd_tensor.shape()[n].try_into().unwrap() ;
+             } ,
+        1 => {  perm_order = [ 1 , 0 , 2 ];
+                for_range = nd_tensor.shape()[0].try_into().unwrap() ;
+             } ,
+        2 => {  perm_order = [ 1 , 0 , 2 ] ;
+                for_range = nd_tensor.shape()[n].try_into().unwrap() ;
+             } ,
         _ => panic!("Valor Inválido de n usado na tentativa de Matricializar o Tensor de entrada "),
     }
     
     let nd_tensor = nd_tensor.clone().permuted_axes(perm_order) ;
     let mut out: ArrayBase<ndarray::ViewRepr<&f64>, Dim<[usize; 2]>>   = nd_tensor.index_axis(Axis(0), 0);
     // let n = 0 ;
-    // println!("A entrada Permutada ficou : \n{:?}", &nd_tensor);
-    for index in 0..nd_tensor.shape()[n]{
+    println!("A entrada Permutada ficou : \n{:?}", &nd_tensor.index_axis(Axis(1), 0));
+    
+    for index in 0..usize::try_from(for_range).unwrap() {
 
         out  = nd_tensor.index_axis(Axis(n), index);
+        // println!("O valor de OUT Fora do IF :\n{:?}",&out) ;
         // vet_len = &out.shape()[1] ;
         out = out.permuted_axes([1 , 0]);
 
         // println!("Teste de out :\n{:?}" , &out);
+        // if n == 1{
+        //     println!("O valor de OUT Dentro do IF :\n{:?}",&out) ;
+        //     result.push( out.into() );
+        // }else{
+
+        //     result.push( out.into() );
+        // }
         result.push( out.into() );
         // let mut out1 = out.rows().into_iter().collect::<Vec<_>>();
         // let mut aux = Vec::new();
@@ -284,6 +302,15 @@ fn product_kronecker_1d<T1:std::iter::Iterator  , S1 : ndarray::Data , D >( a_ts
         return result ; 
     }
 
+fn convert_usize<T1> (value: T1 )-> usize
+where T1 : IntoConst, usize: From<T1> //Into<usize>,
+{
+
+    value.into()
+    // value.
+
+}
+    
 fn convert_f64<T1> (value: T1 )-> f64
 where T1 : Into<f64>,
 {
