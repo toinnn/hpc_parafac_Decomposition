@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 
 ndarray = "0.16" 
+rand = "*"
 
 faer = "*"
 faer-ext= "*"

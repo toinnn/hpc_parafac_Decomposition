@@ -1,23 +1,18 @@
 use std::fmt::{Debug  };
 
+// use std::simd::usizex32;
 use std::{iter, usize};
 use std::iter::{zip}; 
 
-use faer::reborrow::IntoConst;
+// use faer::reborrow::IntoConst;
 use faer::{mat , Mat };
 use faer_ext::*;
 
-use ndarray::{array, concatenate, Axis , ArrayBase , RawData , CowRepr };
+use ndarray::{array, concatenate, Axis , ArrayBase , RawData , CowRepr , OwnedRepr };
 use ndarray::Order;
 use ndarray::prelude::*;
 
-// extern crate nalgebra as na;
-// use nalgebra::{SVD , dmatrix } ;
-// use nalgebra::*;
-
-// use nalgebra_lapack::SVD;
-
-
+use rand;
 use std::any::type_name;
 
 
@@ -26,8 +21,165 @@ fn type_of<T>(_: T) -> &'static str {
 }
 
 
-// type ndarray1 = ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>>;
-// type ndarray2 = ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 2]>>;
+type Ndarray1 = ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>>;
+type Ndarray2 = ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 2]>>;
+// <S1 : ndarray::Data  , D > 
+// fn take_n_fiber(nd_tensor  : &ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 3] >> ,
+//     n : usize ){
+
+//         let shape = nd_tensor.shape();
+//         let mut result  = Vec::new();
+//         // nd_tensor[[i , j , k ]] ;
+
+//     }
+fn matricilyze_tensor( nd_tensor  : &ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 3] >> ,
+    n : usize )
+    -> ArrayBase< ndarray::OwnedRepr<f64> , Dim<[usize; 2] >> 
+    // where  S1: RawData<Elem = f64>  ,  D  : Dimension<Smaller = ndarray::Dim<[usize; 2]>>  + ndarray::RemoveAxis ,
+{   
+    println!("A entrada foi : \n{:?}", &nd_tensor);
+
+    let mut result: Vec<ArrayBase<CowRepr<f64>, Dim<[usize; 2]>>>  = Vec::new(); 
+    let mut out2: Vec<ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>>> = vec![array![[1.0 , 2.0 ],
+                                                                  [3.0 , 4.0 ]] ];
+
+    //++++++++++++++++ GAMBIARRA PARA CONSERTAR O FUNCIONAMENTO DO INDEX_AXIS QUE SÓ FUNCIONA CORRETAMENTE EM N == 2 :+++++++++
+    let mut perm_order = [0 , 1 , 2 ];
+    let mut vet_len = &0 ;
+    match n{
+        0 => perm_order = [ 0 , 2 , 1 ] ,
+        1 => perm_order = [ 0 , 1 , 2 ] ,
+        2 => perm_order = [ 1 , 0 , 2 ] ,
+        _ => panic!("Valor Inválido de n usado na tentativa de Matricializar o Tensor de entrada "),
+    }
+    
+    let nd_tensor = nd_tensor.clone().permuted_axes(perm_order) ;
+    let mut out: ArrayBase<ndarray::ViewRepr<&f64>, Dim<[usize; 2]>>   = nd_tensor.index_axis(Axis(0), 0);
+    // let n = 0 ;
+    // println!("A entrada Permutada ficou : \n{:?}", &nd_tensor);
+    for index in 0..nd_tensor.shape()[n]{
+
+        out  = nd_tensor.index_axis(Axis(n), index);
+        // vet_len = &out.shape()[1] ;
+        out = out.permuted_axes([1 , 0]);
+
+        // println!("Teste de out :\n{:?}" , &out);
+        result.push( out.into() );
+        // let mut out1 = out.rows().into_iter().collect::<Vec<_>>();
+        // let mut aux = Vec::new();
+        
+        
+        
+
+        // for it in 0..out1.len() {
+                                        
+        //     // println!("{:?}", &out1[it].to_shape(((vet_len, 1), Order::RowMajor)).unwrap() );
+        //     aux.push( out1[it].to_shape((( (*vet_len).into() , 1), Order::RowMajor)).unwrap() ) ;
+        // }
+        // println!("Resultado dos to_shape :\n{:?}", &aux );
+        
+        // let out1 = aux ;
+        // let mut aux: Vec<ArrayBase<CowRepr<'_, f64>, Dim<[usize; 2]>>> = Vec::new();
+
+
+        // for mut vetor in out1 {
+
+        //     println!("Eu estive aki");
+        //     aux.push( vetor.mapv_into(|x|convert_f64(x)));//.collect::<Vec<_>>() )  ;
+        //     // vetor.into_iter().map(|x|println!("O valor é :\n{:?}",x) )   ;
+
+        // }
+        // println!("O Atual valor :\n{:?}" , &aux );
+
+        // result.extend(aux);
+        // let out1 = aux ;
+        // // let mut aux = Vec::new();
+        // Array2::<f64>::
+        // for it in 0..out1.len(){
+
+        //     println!("O valor é : \n{:?}" , Array2(&vec![out1[it].clone()])  );
+        // }
+
+        // out2 = aux ;
+        
+        
+        // let mut out = out.map(|x|convert_f64(*x));
+        // println!("O axis Extraído foi :\n{:?}" , &out1 );//slice_mut(s![..,..]) );// .slice_axis_inplace(Axis(0) ,  ndarray::Slice::from(..) ) );
+
+        // for vector in out.s {
+
+        // }
+
+        // let out1 = out.to_shape(((out[0].shape()[0] , 1), Order::RowMajor)).unwrap(); //
+        // let
+        
+        // println!("O Result :\n{:?}" , result ) ;
+        // let out: ArrayBase<ndarray::OwnedRepr< f64 >, Dim<[usize; 2]>>   = out1.map(|x|convert_f64(*x)) ;
+        // let out = out1 ;
+
+        // result.extend(vec![ out ]);
+        // result.extend( out2 );
+             
+    }
+    // println!("O Result matricializado Pré-Concatenate com n na direção {n} foi :\n{:?}" , &result );
+
+    let result: ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>> = concatenate(Axis(1) , &result.iter().map(|vtor |{vtor.view()}).collect::<Vec<_>>() ).unwrap() ;
+    
+    // result
+    println!("O Result matricializado foi :\n{:?}" , result );
+    // nd_tensor.clone()
+    result
+    
+}
+
+// fn parafac_decomposition(nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> , r : usize )
+//                                 //:::: O OUTPUT SAO 3 MATRIZES :::
+//     -> ( ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> , ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> , ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >>  )
+// {   
+//     //------------------ INSTANCIA N MATRIZES ALEATORIAMENTE (Onde n == ao número de n-dimensões do Tensor ): ------------------------------
+//     let mut r_list = vec![Array2::<f64>::zeros(( 4 , r )) ; 3 ];
+    
+
+//     for  r in &mut r_list {
+
+//         for x in r.iter_mut(){ 
+//             *x = rand::random();
+            
+//         }
+
+//     }
+    
+//     let mut v = Array2::<f64>::ones(( 4 , r )) ;
+//     // ndarray::linalg::Dot
+//     let mut v_aux = Array2::<f64>::zeros(( r , r )) ;
+//     for n in &mut r_list 
+//     {   
+//         //----------LINHA DO PRODUTO HADAMANT---------------
+//         for i in r_list {
+//             let i_perm = i.permuted_axes([1, 0]) ;
+//             v_aux = i_perm.dot( i ) ;
+//             v = v*v_aux;
+            
+//         }
+//         v = nd_pseudo_inverse(v);
+
+//         let a_kt = Array2::<f64>::zeros(( r , r )) ;
+//         //----------LINHA DO PRODUTO kATRI-RAO---------------
+//         for i in (0..100).rev()  {
+//             r_list[i];
+//         }
+//         // r_list.reverse() ;
+//         let als_aux = a_kt.dot(v);
+//         // *n = ??????
+
+
+//     }
+
+
+    
+//     println!("O Resultado do rand foi : \n{:?}", &r_list[0].permuted_axes([1, 0]) );
+//     ( r_list[0].clone() , r_list[1].clone() , r_list[2].clone() )
+// }
 
 fn nd_pseudo_inverse ( nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >>  ) 
                                                 -> ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> 
@@ -72,7 +224,7 @@ fn ndarray_2_faer( nd_tensor  : ArrayBase<ndarray::OwnedRepr<f64>, Dim<[usize; 2
     I_faer
 }
 
-fn faer_2_ndarray( faer_tensor  : Mat<f64> )
+fn faer_2_ndarray( faer_tensor  : Mat< f64 > )
         -> ArrayBase<ndarray::OwnedRepr<f64>, Dim<[usize; 2]>>
         // where S1: RawData<Elem = f64>  , D : Dimension , 
     {
@@ -142,11 +294,11 @@ where T1 : Into<f64>,
 
 fn product_khatri_rao(  a_ts :  ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> , 
                            b_ts : &ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 2]>> ) 
-                           ->      ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 2]>> 
+                           ->   ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> 
                            
                        {
     
-    let mut result: Vec< ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 2]>> >  = Vec::new();
+    let mut result: Vec<        ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> >  = Vec::new();
     // let out : ArrayBase<ndarray::OwnedRepr<f64>, Dim<[usize; 1]>>  =  array![4.0 , 2.0 ];
 
     for (a_j , b_j) in zip(a_ts.columns() , b_ts.columns()  ){ //columns_mut()// .axis_iter_mut(Axis(0))
@@ -202,6 +354,10 @@ fn main() {
     //     [1.0, 2.0],
     //     [3.0, 4.0]
     //     ];
+    let a = array![
+        [-3.0  , -5.0 ],
+        [-12.0 , -13.0]];
+
     let b = array![
         [1.0, 2.0],
         [3.0, 4.0]
@@ -252,29 +408,23 @@ fn main() {
 
     println!("Ultima matrix :\n{:?}" , nd_pseudo );
 
+    println!("a.dot(b) = :\n{:?}\n\nb.dot(&a) :\n{:?}" , a.dot(&b) , b.dot(&a) );
+
+    // parafac_decomposition(nd_pseudo , 1 );
+    // println!("{:?} ", &a);
+let nd_teste = array![[[1.0  , 2.0 , 3.0] ,
+                                                     [2.0  , 4.0 , 5.0]],
+
+                                                   [ [-10.0 ,-25.0,36.0 ],
+                                                     [ -29.0,43.0 ,55.0]]
+                                                                    ];
+let mt_ts = matricilyze_tensor(  &nd_teste , 1 );
+
+// println!("O tensor a matricializado : \n{:?}" , mt_ts);
 
 //++++++++++++++++++++++++++++++++++++++++::::BANIDO:::+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    // let matrix_teste = na::dmatrix![[12.0 , 35.0 , 27.0],[21.0, 25.0 , 98.0] , [22.0 , 23.0 , 27.0]];
-    // // let (u , v , d) : () ;
-    // let deco = SVD::new(matrix_teste); 
 
-
-    // let x = na::dmatrix![[12.0 , 35.0 , 27.0],[21.0, 25.0 , 98.0] , [22.0 , 23.0 , 27.0]];
-    // x = x.into() ;
-
-    // let svd_v = SVD::new(x.clone().into() , true , true ).v_t.unwrap();
-    // let svd_u = SVD::new(x.clone() , true , true ).u.unwrap()  ;
-
-    // println!("svd_v = \n{:?}" , svd_v );
-    // let x_pseudo = x.pseudo_inverse(0.0000001).unwrap();
-
-
-    // SVD(matrix_teste);
-    // ndarray_linalg.
-    // deco.singular_values;  
-    // println!("Teste do ndalgebra : \n{:?}" , matrix_teste); 
-    // println!("a:\n{:?}\n\nm2:\n{:?}", a.what_is_this , m2.what_is_this);
 
 }
 
