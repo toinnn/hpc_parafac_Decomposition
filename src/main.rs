@@ -16,6 +16,8 @@ use ndarray::prelude::*;
 
 use rand;
 use std::any::type_name;
+use std::time::Instant;
+use std::mem::size_of;
 
 
 fn type_of<T>(_: T) -> &'static str {
@@ -150,61 +152,83 @@ fn matricilyze_tensor( nd_tensor  : &ArrayBase< ndarray::OwnedRepr<f64> , Dim< [
     
 }
 
-// fn parafac_decomposition(nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> , r : usize )
-//                                 //:::: O OUTPUT SAO 3 MATRIZES :::
-//     -> ( ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> , ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> , ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >>  )
-// {   
-//     //------------------ INSTANCIA N MATRIZES ALEATORIAMENTE (Onde n == ao número de n-dimensões do Tensor ): ------------------------------
-//     let mut r_list = vec![Array2::<f64>::zeros(( 4 , r )) ; 3 ];
+fn parafac_decomposition(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 3] >> ,
+                            r : usize ,
+                            max_number_of_iterations : i32 )
+                                //:::: O OUTPUT SAO 3 MATRIZES :::
+    -> ( ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> , ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> , ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >>  )
+{   
+    let n = 3 ;
+    let ts_shape = nd_tensor.shape();
+    //------------------ INSTANCIA N MATRIZES ALEATORIAMENTE (Onde n == ao número de n-dimensões do Tensor ): ------------------------------
+    let mut r_list = vec![Array2::<f64>::zeros(( ts_shape[0] , r )) ,
+                                                             Array2::<f64>::zeros(( ts_shape[1] , r )) ,
+                                                             Array2::<f64>::zeros(( ts_shape[2] , r )) ];
     
 
-//     for  r in &mut r_list {
+    
+    for  r in &mut r_list {
 
-//         for x in r.iter_mut(){ 
-//             *x = rand::random();
+        for x in r.iter_mut(){ 
+            *x = rand::random();
             
-//         }
+        }
 
-//     }
+    }
+    println!("\nIniciando o Looping de Decomposição Parafac. ..  ...\n\n");
+    for iteration in 0..max_number_of_iterations {
+
+        let mut v = Array2::<f64>::ones(( r , r )) ;
+        // ndarray::linalg::Dot
+        let mut v_aux = Array2::<f64>::zeros(( r , r )) ;
+        for n in 0..r_list.len() 
+        {   
+            //--+-=+-+-+-+-=+--------TRECHO DO PRODUTO HADAMANT-------------------+++++++++++++
+            for i in 0..r_list.len() {
+                let i_perm = r_list[i].clone().permuted_axes([1, 0]) ;
+                v_aux = i_perm.dot( &r_list[i] ) ;
+                v = v*v_aux;
+                
+            }
+            println!("A Inversa será calculada a seguir : ");
+            v = nd_pseudo_inverse(v);
+
+            println!("A Inversa foi calculada : ");
+            //+++++++++++++++++------TRECHO DO PRODUTO kATRI-RAO---------------++++++++++++++++++++++++++
+            let a_kt = product_khatri_rao(r_list[r_list.len() - 1 ].clone() , &r_list[r_list.len() - 2] ) ; //Array2::<f64>::zeros(( r , r )) ;
+            for i in (0..r_list.len()-3).rev()  {
+                // in_ts{}
+                product_khatri_rao(a_kt.clone() , &r_list[i-1] ) ;
+            }
+            // r_list.reverse() ;
+            let als_aux = a_kt.dot(&v);
+            println!("Vou matricializar um tensor ");
+            let Xn = matricilyze_tensor(&nd_tensor , n ) ;
+
+            // let als_aux: ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>> = 
+            // *n = ??????
+            r_list[n] = Xn.dot( &als_aux );
+
+        }
+
+
+    }
     
-//     let mut v = Array2::<f64>::ones(( 4 , r )) ;
-//     // ndarray::linalg::Dot
-//     let mut v_aux = Array2::<f64>::zeros(( r , r )) ;
-//     for n in &mut r_list 
-//     {   
-//         //----------LINHA DO PRODUTO HADAMANT---------------
-//         for i in r_list {
-//             let i_perm = i.permuted_axes([1, 0]) ;
-//             v_aux = i_perm.dot( i ) ;
-//             v = v*v_aux;
-            
-//         }
-//         v = nd_pseudo_inverse(v);
-
-//         let a_kt = Array2::<f64>::zeros(( r , r )) ;
-//         //----------LINHA DO PRODUTO kATRI-RAO---------------
-//         for i in (0..100).rev()  {
-//             r_list[i];
-//         }
-//         // r_list.reverse() ;
-//         let als_aux = a_kt.dot(v);
-//         // *n = ??????
-
-
-//     }
 
 
     
-//     println!("O Resultado do rand foi : \n{:?}", &r_list[0].permuted_axes([1, 0]) );
-//     ( r_list[0].clone() , r_list[1].clone() , r_list[2].clone() )
-// }
+    // println!("O Resultado do rand foi : \n{:?}", &r_list[0].clone().permuted_axes([1, 0]) );
+    ( r_list[0].clone() , r_list[1].clone() , r_list[2].clone() )
+}
 
 fn nd_pseudo_inverse ( nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >>  ) 
                                                 -> ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> 
                                                 
 {
     let faer_tensor = ndarray_2_faer(nd_tensor) ;
+    println!("Meus valores foram convertidos ");
     let svd = faer_tensor.svd() ;
+    println!("Svd foi Calculado ! ");
     let pseudo = svd.pseudoinverse();
 
     
@@ -319,9 +343,9 @@ where T1 : Into<f64>,
 
 }
 
-fn product_khatri_rao(  a_ts :  ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> , 
-                           b_ts : &ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 2]>> ) 
-                           ->   ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> 
+fn product_khatri_rao(     a_ts :  ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> , 
+                           b_ts : &ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> ) 
+                           ->      ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> 
                            
                        {
     
@@ -332,8 +356,8 @@ fn product_khatri_rao(  a_ts :  ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::p
             //a_j.mapv_into(|vl|{vl*40.0})
             
             let inp = in_ts{ts : a_j.into_iter().map(|&x| convert_f64(x) ) } ;
-
-            let inp_b = b_j.to_shape(((2, 1), Order::RowMajor)).unwrap() ;
+            let b_size = b_j.shape()[0];
+            let inp_b = b_j.to_shape((( b_size , 1), Order::RowMajor)).unwrap() ;
             
             // println!("Coluna de A :\n{:?}" , type_of(a_j) ) ;  
             
@@ -344,7 +368,8 @@ fn product_khatri_rao(  a_ts :  ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::p
             let inp = in_ts{ts : a_j.into_iter().map(|&x| convert_f64(x) ) } ;
             // result.push(vec![ product_Kronecker_1d( inp , &inp_b ).to_shape(((4, 1), Order::RowMajor)).unwrap()  ]);
             let out: ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>>   = product_kronecker_1d( inp , &inp_b ) ;
-            let out1 = out.to_shape(((4, 1), Order::RowMajor)).unwrap(); //
+            let out_size = out.shape()[0] ;
+            let out1 = out.to_shape((( out_size , 1), Order::RowMajor)).unwrap(); //
             let out: ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 2]>>   = out1.map(|x|convert_f64(*x)) ;
             // let out = out.collect::<Vec<_>>() ;
 
@@ -402,10 +427,10 @@ fn main() {
     
     
 
-    let a3 = in_ts {ts : a2.into_iter()};// .iter()};
+    // let a3 = in_ts {ts : a2.into_iter()};// .iter()};
     // product_Kronecker_1d(a3 , &b);
 
-    let ts = product_khatri_rao( b.clone()  , &b);
+    // let ts = product_khatri_rao( b.clone()  , &b);
 
     // println!("O Resultado do Produto Katri-Rao é igual a :\n\n{:?}" , ts[[1 , 0]] );
 
@@ -415,39 +440,42 @@ fn main() {
     // println!("O Faer não alterado : \n{:?}" , I_faer[[0,0].into()] );
 
     
-    let faer_new = ndarray_2_faer(ts);
+    // let faer_new = ndarray_2_faer(ts);
     
-    let x = mat![
-    [10.0, 3.0],
-    [2.0, -10.0],
-    [3.0, -45.0],
-    ];
+    // let x = mat![
+    // [10.0, 3.0],
+    // [2.0, -10.0],
+    // [3.0, -45.0],
+    // ];
 
-    let nd_new = faer_2_ndarray(x.clone());
+    // let nd_new = faer_2_ndarray(x.clone());
 
-    let svd = x.svd();
-    let ps = svd.pseudoinverse();
+    // let svd = x.svd();
+    // let ps = svd.pseudoinverse();
     // println!("svd : \n{:?}" , svd );
     // println!("ps : \n{:?}" , ps );
 
-    let nd_pseudo = nd_pseudo_inverse(nd_new);
+    // let nd_pseudo = nd_pseudo_inverse(nd_new);
     
 
-    println!("Ultima matrix :\n{:?}" , nd_pseudo );
+    // println!("Ultima matrix :\n{:?}" , nd_pseudo );
 
-    println!("a.dot(b) = :\n{:?}\n\nb.dot(&a) :\n{:?}" , a.dot(&b) , b.dot(&a) );
+    // println!("a.dot(b) = :\n{:?}\n\nb.dot(&a) :\n{:?}" , a.dot(&b) , b.dot(&a) );
 
-    // parafac_decomposition(nd_pseudo , 1 );
+    
+    let nd_teste = array![ [[1.0  , 2.0 , 3.0  ]   ,
+                                                          [2.0  , 4.0 , 5.0  ] ] ,
+
+                                                         [[-10.0 ,-25.0,36.0 ]   ,
+                                                          [ -29.0,43.0 ,55.0 ]]
+                                                                                ];
+    // let mt_ts = matricilyze_tensor(  &nd_teste , 1 );
+
+    // println!("O tensor a matricializado : \n{:?}" , mt_ts);
+
+
+    parafac_decomposition(nd_teste , 6 , 20 );
     // println!("{:?} ", &a);
-let nd_teste = array![[[1.0  , 2.0 , 3.0] ,
-                                                     [2.0  , 4.0 , 5.0]],
-
-                                                   [ [-10.0 ,-25.0,36.0 ],
-                                                     [ -29.0,43.0 ,55.0]]
-                                                                    ];
-let mt_ts = matricilyze_tensor(  &nd_teste , 1 );
-
-// println!("O tensor a matricializado : \n{:?}" , mt_ts);
 
 //++++++++++++++++++++++++++++++++++++++++::::BANIDO:::+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
