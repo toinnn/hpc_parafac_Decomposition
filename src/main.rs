@@ -67,7 +67,7 @@ fn matricilyze_tensor( nd_tensor  : &ArrayBase< ndarray::OwnedRepr<f64> , Dim< [
     let nd_tensor = nd_tensor.clone().permuted_axes(perm_order) ;
     let mut out: ArrayBase<ndarray::ViewRepr<&f64>, Dim<[usize; 2]>>   = nd_tensor.index_axis(Axis(0), 0);
     // let n = 0 ;
-    println!("A entrada Permutada ficou : \n{:?}", &nd_tensor.index_axis(Axis(1), 0));
+    // println!("A entrada Permutada ficou : \n{:?}", &nd_tensor.index_axis(Axis(1), 0));
     
     for index in 0..usize::try_from(for_range).unwrap() {
 
@@ -161,11 +161,13 @@ fn parafac_decomposition(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Di
     let n = 3 ;
     let ts_shape = nd_tensor.shape();
     //------------------ INSTANCIA N MATRIZES ALEATORIAMENTE (Onde n == ao número de n-dimensões do Tensor ): ------------------------------
-    let mut r_list = vec![Array2::<f64>::zeros(( ts_shape[0] , r )) ,
-                                                             Array2::<f64>::zeros(( ts_shape[1] , r )) ,
-                                                             Array2::<f64>::zeros(( ts_shape[2] , r )) ];
+    let mut r_list = vec![Array2::<f64>::zeros(( ts_shape[1] , r )) ,
+                                                             Array2::<f64>::zeros(( ts_shape[2] , r )) ,
+                                                             Array2::<f64>::zeros(( ts_shape[0] , r )) ];
     
-
+    for it in 0..r_list.len(){
+        println!("\nO Shape da matriz referente ao n = {it} é igual a {:?}\n" , &r_list[it].shape() );
+    }
     
     for  r in &mut r_list {
 
@@ -178,16 +180,20 @@ fn parafac_decomposition(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Di
     println!("\nIniciando o Looping de Decomposição Parafac. ..  ...\n\n");
     for iteration in 0..max_number_of_iterations {
 
-        let mut v = Array2::<f64>::ones(( r , r )) ;
-        // ndarray::linalg::Dot
+        let mut v     = Array2::<f64>::ones(( r , r )) ;
         let mut v_aux = Array2::<f64>::zeros(( r , r )) ;
         for n in 0..r_list.len() 
         {   
+            
+            v     = Array2::<f64>::ones( ( r , r )) ;
+            v_aux = Array2::<f64>::zeros(( r , r )) ;
             //--+-=+-+-+-+-=+--------TRECHO DO PRODUTO HADAMANT-------------------+++++++++++++
             for i in 0..r_list.len() {
-                let i_perm = r_list[i].clone().permuted_axes([1, 0]) ;
-                v_aux = i_perm.dot( &r_list[i] ) ;
-                v = v*v_aux;
+                if n != i {
+                    let i_perm = r_list[i].clone().permuted_axes([1, 0]) ;
+                    v_aux = i_perm.dot( &r_list[i] ) ;
+                    v = v*v_aux;
+                }                
                 
             }
             println!("A Inversa será calculada a seguir : ");
@@ -195,16 +201,40 @@ fn parafac_decomposition(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Di
 
             println!("A Inversa foi calculada : ");
             //+++++++++++++++++------TRECHO DO PRODUTO kATRI-RAO---------------++++++++++++++++++++++++++
-            let a_kt = product_khatri_rao(r_list[r_list.len() - 1 ].clone() , &r_list[r_list.len() - 2] ) ; //Array2::<f64>::zeros(( r , r )) ;
-            for i in (0..r_list.len()-3).rev()  {
-                // in_ts{}
-                product_khatri_rao(a_kt.clone() , &r_list[i-1] ) ;
-            }
-            // r_list.reverse() ;
-            let als_aux = a_kt.dot(&v);
-            println!("Vou matricializar um tensor ");
-            let Xn = matricilyze_tensor(&nd_tensor , n ) ;
+            // println!("Produto Khatri-Rao do n = {:?} com o n = {:?}" , r_list.len() - 1 , r_list.len() - 2 );
+            let mut a_kt = r_list[r_list.len() - 1].clone() ;
+            
+            // if n == r_list.len() - 1{
+            //     println!("Produto Khatri-Rao do n = {:?} com o n = {:?}" , r_list.len() - 1 , r_list.len() - 2 );
+            //     a_kt = r_list[r_list.len() - 2].clone()  ;
+            // }else if n == r_list.len() - 2 {
+            //     a_kt = r_list[r_list.len() - 1].clone()  ;
+            // }else{
+            //     a_kt = product_khatri_rao(r_list[r_list.len() - 1 ].clone() , &r_list[r_list.len() - 2] ) ;
+            // }
+            //  //Array2::<f64>::zeros(( r , r )) ;
+            // for i in (0..r_list.len()-3).rev()  {
+            //     // in_ts{}
+            //     if i != n {
+            //         println!("Produto Khatri-Rao do acumulado com o n = {:?} " , i - 1 );
+            //         a_kt = product_khatri_rao(a_kt.clone() , &r_list[i-1] ) ;
+            //     }
+                
+            // }
 
+            match n {
+                0 => a_kt = product_khatri_rao(r_list[1].clone() , &r_list[2] ) ,
+                1 => a_kt = product_khatri_rao(r_list[0].clone() , &r_list[2] ) ,
+                2 => a_kt = product_khatri_rao(r_list[0].clone() , &r_list[1] ) ,
+                _ => panic!("Valor Inválido de n usado na tentativa de Realizar o Khatri-Rao o Tensor de entrada "),
+            }
+
+            // r_list.reverse() ;
+            println!("O shape Final dos Produtos Katri-Rao : {:?}", &a_kt.shape() );
+            let als_aux = a_kt.dot(&v);
+            // println!("Vou matricializar um tensor ");
+            let Xn = matricilyze_tensor(&nd_tensor , n ) ;
+            println!("\n\nTensor X matricializado com Sucesso em relação a direção n : {n}\n\n");
             // let als_aux: ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>> = 
             // *n = ??????
             r_list[n] = Xn.dot( &als_aux );
@@ -226,9 +256,9 @@ fn nd_pseudo_inverse ( nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Dim< [u
                                                 
 {
     let faer_tensor = ndarray_2_faer(nd_tensor) ;
-    println!("Meus valores foram convertidos ");
+    // println!("Meus valores foram convertidos ");
     let svd = faer_tensor.svd() ;
-    println!("Svd foi Calculado ! ");
+    // println!("Svd foi Calculado ! ");
     let pseudo = svd.pseudoinverse();
 
     
@@ -270,7 +300,7 @@ fn faer_2_ndarray( faer_tensor  : Mat< f64 > )
         -> ArrayBase<ndarray::OwnedRepr<f64>, Dim<[usize; 2]>>
         // where S1: RawData<Elem = f64>  , D : Dimension , 
     {
-        println!("O faer_tensor de Entrada foi :\n{:?}" , &faer_tensor );
+        // println!("O faer_tensor de Entrada foi :\n{:?}" , &faer_tensor );
 
 
         let rows: usize    = faer_tensor.shape().0 ;
@@ -291,7 +321,7 @@ fn faer_2_ndarray( faer_tensor  : Mat< f64 > )
         }
 
 
-        println!("O nd_tensor de Saída foi :\n{:?}" , &nd_tensor );
+        // println!("O nd_tensor de Saída foi :\n{:?}" , &nd_tensor );
 
         nd_tensor
     }
@@ -359,9 +389,9 @@ fn product_khatri_rao(     a_ts :  ArrayBase<ndarray::OwnedRepr< f64 > , ndarray
             let b_size = b_j.shape()[0];
             let inp_b = b_j.to_shape((( b_size , 1), Order::RowMajor)).unwrap() ;
             
-            // println!("Coluna de A :\n{:?}" , type_of(a_j) ) ;  
+            // println!("Coluna de A :\n{:?}" , &a_j ) ;  
             
-            // println!("Colunas de B :\n{:?}\n" , &inp_b );
+            // println!("Colunas de B :\n{:?}\n" , &b_j );
 
             // println!("O Produto Tensorial entre a Coluna A e Coluna B é : \n{:?}" , product_Kronecker_1d( inp , &inp_b ) );
             
@@ -381,7 +411,7 @@ fn product_khatri_rao(     a_ts :  ArrayBase<ndarray::OwnedRepr< f64 > , ndarray
     // println!("O result atual é : \n{:?}" ,  &result  );
     let result = concatenate(Axis(1) , &result.iter().map(|vtor|{vtor.view()}).collect::<Vec<_>>() ).unwrap() ;
     
-    println!("Teste do Resultado final do Produto Katri-Rao : \n{:?}" , &result );
+    println!("Teste do Resultado final do Produto Khatri-Rao tem o shape : \n{:?}" , &result.shape() );
     
     result
 }
@@ -480,7 +510,7 @@ fn main() {
     // println!("O tensor a matricializado : \n{:?}" , mt_ts);
 
     let before = Instant::now();
-    parafac_decomposition(nd_teste , 6 , 20 );
+    parafac_decomposition(nd_teste , 6 , 500 );
     let after = Instant::now();
     println!("\nTime elapsed: {:?}", after.duration_since(before));
     // println!("{:?} ", &a);
