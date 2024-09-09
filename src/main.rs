@@ -41,7 +41,7 @@ fn matricilyze_tensor( nd_tensor  : &ArrayBase< ndarray::OwnedRepr<f64> , Dim< [
     -> ArrayBase< ndarray::OwnedRepr<f64> , Dim<[usize; 2] >> 
     // where  S1: RawData<Elem = f64>  ,  D  : Dimension<Smaller = ndarray::Dim<[usize; 2]>>  + ndarray::RemoveAxis ,
 {   
-    println!("A entrada foi : \n{:?}", &nd_tensor);
+    // println!("A entrada foi : \n{:?}", &nd_tensor);
 
     let mut result : Vec<ArrayBase<CowRepr<f64>, Dim<[usize; 2]>>>  = Vec::new(); 
     let mut result2: Vec<ArrayBase<CowRepr<f64>, Dim<[usize; 2]>>>  = Vec::new();
@@ -146,7 +146,7 @@ fn matricilyze_tensor( nd_tensor  : &ArrayBase< ndarray::OwnedRepr<f64> , Dim< [
     let result: ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>> = concatenate(Axis(1) , &result.iter().map(|vtor |{vtor.view()}).collect::<Vec<_>>() ).unwrap() ;
     
     // result
-    println!("O Result matricializado foi :\n{:?}" , result );
+    // println!("O Result matricializado foi :\n{:?}" , result );
     // nd_tensor.clone()
     result
     
@@ -179,6 +179,7 @@ fn parafac_decomposition(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Di
     }
     println!("\nIniciando o Looping de Decomposição Parafac. ..  ...\n\n");
     for iteration in 0..max_number_of_iterations {
+        println!("Iteração número {:?}", &iteration );
 
         let mut v     = Array2::<f64>::ones(( r , r )) ;
         let mut v_aux = Array2::<f64>::zeros(( r , r )) ;
@@ -196,10 +197,10 @@ fn parafac_decomposition(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Di
                 }                
                 
             }
-            println!("A Inversa será calculada a seguir : ");
+            // println!("A Inversa será calculada a seguir : ");
             v = nd_pseudo_inverse(v);
 
-            println!("A Inversa foi calculada : ");
+            // println!("A Inversa foi calculada : ");
             //+++++++++++++++++------TRECHO DO PRODUTO kATRI-RAO---------------++++++++++++++++++++++++++
             // println!("Produto Khatri-Rao do n = {:?} com o n = {:?}" , r_list.len() - 1 , r_list.len() - 2 );
             let mut a_kt = r_list[r_list.len() - 1].clone() ;
@@ -230,11 +231,11 @@ fn parafac_decomposition(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Di
             }
 
             // r_list.reverse() ;
-            println!("O shape Final dos Produtos Katri-Rao : {:?}", &a_kt.shape() );
+            // println!("O shape Final dos Produtos Katri-Rao : {:?}", &a_kt.shape() );
             let als_aux = a_kt.dot(&v);
             // println!("Vou matricializar um tensor ");
             let Xn = matricilyze_tensor(&nd_tensor , n ) ;
-            println!("\n\nTensor X matricializado com Sucesso em relação a direção n : {n}\n\n");
+            // println!("\n\nTensor X matricializado com Sucesso em relação a direção n : {n}\n\n");
             // let als_aux: ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>> = 
             // *n = ??????
             r_list[n] = Xn.dot( &als_aux );
@@ -411,7 +412,7 @@ fn product_khatri_rao(     a_ts :  ArrayBase<ndarray::OwnedRepr< f64 > , ndarray
     // println!("O result atual é : \n{:?}" ,  &result  );
     let result = concatenate(Axis(1) , &result.iter().map(|vtor|{vtor.view()}).collect::<Vec<_>>() ).unwrap() ;
     
-    println!("Teste do Resultado final do Produto Khatri-Rao tem o shape : \n{:?}" , &result.shape() );
+    // println!("Teste do Resultado final do Produto Khatri-Rao tem o shape : \n{:?}" , &result.shape() );
     
     result
 }
@@ -505,12 +506,19 @@ fn main() {
                                                          [[-10.0 ,-25.0,36.0 ]   ,
                                                           [ -29.0,43.0 ,55.0 ]]
                                                                                 ];
+    let mut nd_teste = Array3::<f64>::zeros(( 50 , 250 , 73 ));
+
+    for x in nd_teste.iter_mut(){ 
+        *x = rand::random();   
+    }
+
+
     // let mt_ts = matricilyze_tensor(  &nd_teste , 1 );
 
     // println!("O tensor a matricializado : \n{:?}" , mt_ts);
 
     let before = Instant::now();
-    parafac_decomposition(nd_teste , 6 , 500 );
+    parafac_decomposition(nd_teste , 30 , 500 );
     let after = Instant::now();
     println!("\nTime elapsed: {:?}", after.duration_since(before));
     // println!("{:?} ", &a);
