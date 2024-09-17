@@ -419,6 +419,7 @@ dependencies = [
  "faer-ext",
  "ndarray",
  "rand",
+ "rayon",
 ]
 
 [[package]]

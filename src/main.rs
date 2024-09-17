@@ -19,6 +19,7 @@ use std::any::type_name;
 use std::time::Instant;
 use std::mem::size_of;
 
+use rayon::prelude::*;
 
 fn type_of<T>(_: T) -> &'static str {
     type_name::<T>()
@@ -152,6 +153,126 @@ fn matricilyze_tensor( nd_tensor  : &ArrayBase< ndarray::OwnedRepr<f64> , Dim< [
     
 }
 
+fn parafac_decomposition_hpc(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 3] >> ,
+    r : usize ,
+    max_number_of_iterations : i32 )
+        //:::: O OUTPUT SAO 3 MATRIZES :::
+-> ( ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> , ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> , ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >>  )
+{   
+    let p = 8 ;
+    let n = 3 ;
+    let ts_shape = nd_tensor.shape();
+    //------------------ INSTANCIA N MATRIZES ALEATORIAMENTE (Onde n == ao número de n-dimensões do Tensor ): ------------------------------
+    let mut r_list = vec![Array2::<f64>::zeros(( ts_shape[1] , r )) ,
+                                                             Array2::<f64>::zeros(( ts_shape[2] , r )) ,
+                                                             Array2::<f64>::zeros(( ts_shape[0] , r )) ];
+    
+    for it in 0..r_list.len(){
+        println!("\nO Shape da matriz referente ao n = {it} é igual a {:?}\n" , &r_list[it].shape() );
+    }
+    
+    for  r in &mut r_list {
+
+        // for x in r.iter_mut(){ 
+        //     *x = rand::random();
+            
+        // }
+        
+        // PASSEI A ITERAÇÃO SEQUENCIAL PARA ITERADOR PARALELO RAYON ::
+        r.iter_mut().par_bridge().for_each(|x| *x = rand::random());
+
+    }
+    println!("\nIniciando o Looping de Decomposição Parafac. ..  ...\n\n");
+    for iteration in 0..max_number_of_iterations {
+        println!("Iteração número {:?}", &iteration );
+
+        let mut v     = Array2::<f64>::ones(( r , r )) ;
+        let mut v_aux = Array2::<f64>::zeros(( r , r )) ;
+        for n in 0..r_list.len() 
+        {   
+            
+            v     = Array2::<f64>::ones( ( r , r )) ;
+            v_aux = Array2::<f64>::zeros(( r , r )) ;
+            //--+-=+-+-+-+-=+--------TRECHO DO PRODUTO HADAMANT-------------------+++++++++++++
+            // let mut lista_aux = (0..r_list.len()) ;
+            // lista_aux.into_par_iter().for_each(|i| {
+
+            //     if n != i {
+            //         let i_perm = r_list[i].clone().permuted_axes([1, 0]) ;
+            //         *i = i_perm.dot( &r_list[i] ) ;
+            //     }   
+            // });
+            
+            for i in 0..r_list.len() {
+                if n != i {
+                    let i_perm = r_list[i].clone().permuted_axes([1, 0]) ;
+                    v_aux = i_perm.dot( &r_list[i] ) ;
+                    v = v*v_aux;
+                }                
+                
+            }
+            // for i in 0..r_list.len() {
+            //     if n != i {
+            //         let i_perm = r_list[i].clone().permuted_axes([1, 0]) ;
+            //         v_aux = i_perm.dot( &r_list[i] ) ;
+            //         v = v*v_aux;
+            //     }                
+                
+            // }
+            // println!("A Inversa será calculada a seguir : ");
+            v = nd_pseudo_inverse(v);
+
+            // println!("A Inversa foi calculada : ");
+            //+++++++++++++++++------TRECHO DO PRODUTO kATRI-RAO---------------++++++++++++++++++++++++++
+            // println!("Produto Khatri-Rao do n = {:?} com o n = {:?}" , r_list.len() - 1 , r_list.len() - 2 );
+            let mut a_kt = r_list[r_list.len() - 1].clone() ;
+            
+            // if n == r_list.len() - 1{
+            //     println!("Produto Khatri-Rao do n = {:?} com o n = {:?}" , r_list.len() - 1 , r_list.len() - 2 );
+            //     a_kt = r_list[r_list.len() - 2].clone()  ;
+            // }else if n == r_list.len() - 2 {
+            //     a_kt = r_list[r_list.len() - 1].clone()  ;
+            // }else{
+            //     a_kt = product_khatri_rao(r_list[r_list.len() - 1 ].clone() , &r_list[r_list.len() - 2] ) ;
+            // }
+            //  //Array2::<f64>::zeros(( r , r )) ;
+            // for i in (0..r_list.len()-3).rev()  {
+            //     // in_ts{}
+            //     if i != n {
+            //         println!("Produto Khatri-Rao do acumulado com o n = {:?} " , i - 1 );
+            //         a_kt = product_khatri_rao(a_kt.clone() , &r_list[i-1] ) ;
+            //     }
+                
+            // }
+
+            match n {
+                0 => a_kt = product_khatri_rao(r_list[1].clone() , &r_list[2] ) ,
+                1 => a_kt = product_khatri_rao(r_list[0].clone() , &r_list[2] ) ,
+                2 => a_kt = product_khatri_rao(r_list[0].clone() , &r_list[1] ) ,
+                _ => panic!("Valor Inválido de n usado na tentativa de Realizar o Khatri-Rao o Tensor de entrada "),
+            }
+
+            // r_list.reverse() ;
+            // println!("O shape Final dos Produtos Katri-Rao : {:?}", &a_kt.shape() );
+            let als_aux = a_kt.dot(&v);
+            // println!("Vou matricializar um tensor ");
+            let Xn = matricilyze_tensor(&nd_tensor , n ) ;
+            // println!("\n\nTensor X matricializado com Sucesso em relação a direção n : {n}\n\n");
+            // let als_aux: ArrayBase<OwnedRepr<f64>, Dim<[usize; 2]>> = 
+            // *n = ??????
+            r_list[n] = Xn.dot( &als_aux );
+
+        }
+
+
+    }
+    
+
+
+    
+    // println!("O Resultado do rand foi : \n{:?}", &r_list[0].clone().permuted_axes([1, 0]) );
+    ( r_list[0].clone() , r_list[1].clone() , r_list[2].clone() )
+}
 fn parafac_decomposition(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 3] >> ,
                             r : usize ,
                             max_number_of_iterations : i32 )
@@ -426,7 +547,12 @@ fn product_hadamard( a_ts : &ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude
 
 fn main() {
     
-    
+    // let universe = mpi::initialize().unwrap();
+    // let world = universe.world();
+    // let size = world.size();
+    // let rank = world.rank();
+
+    /* 
     // let t = Tensor::from_slice(&[3, 1, 4, 1, 5]);
     // let t = t * 2;
     // let t1 = t.copy() + 2;
@@ -493,6 +619,8 @@ fn main() {
 
     // println!("a.dot(b) = :\n{:?}\n\nb.dot(&a) :\n{:?}" , a.dot(&b) , b.dot(&a) );
     
+    */
+    
     //++++++++CÓDIGO RESPONSÁVEL POR CONTROLAR O TAMANHO DA MEMÓRIA STACK ASSOCIADA A ESSE PROGRAMA +++++++++++++
     const N: usize = 1_000_000;
     
@@ -506,7 +634,7 @@ fn main() {
                                                          [[-10.0 ,-25.0,36.0 ]   ,
                                                           [ -29.0,43.0 ,55.0 ]]
                                                                                 ];
-    let mut nd_teste = Array3::<f64>::zeros(( 50 , 250 , 73 ));
+    let mut nd_teste = Array3::<f64>::zeros(( 150 , 250 , 173 ));
 
     for x in nd_teste.iter_mut(){ 
         *x = rand::random();   
@@ -518,7 +646,9 @@ fn main() {
     // println!("O tensor a matricializado : \n{:?}" , mt_ts);
 
     let before = Instant::now();
-    parafac_decomposition(nd_teste , 30 , 500 );
+    // parafac_decomposition(nd_teste , 30 , 500 );
+    // parafac_decomposition_hpc(nd_teste , 30 , 500 );
+    
     let after = Instant::now();
     println!("\nTime elapsed: {:?}", after.duration_since(before));
     // println!("{:?} ", &a);

@@ -11,6 +11,10 @@ rand = "*"
 faer = "*"
 faer-ext= "*"
 
+#mpi = "0.8.0"
+
+rayon = "1.5"  # Verifique a versão mais recente
+
 
 
 
