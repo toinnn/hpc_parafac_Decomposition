@@ -10,7 +10,7 @@ use faer::reborrow::IntoConst;
 use faer::{mat , Mat };
 use faer_ext::*;
 
-use ndarray::{array, concatenate, Axis , ArrayBase , RawData , CowRepr , OwnedRepr };
+use ndarray::{array, concatenate, Axis , ArrayBase , RawData , RawDataClone , CowRepr , OwnedRepr };
 use ndarray::Order;
 use ndarray::prelude::*;
 
@@ -20,6 +20,7 @@ use std::time::Instant;
 use std::mem::size_of;
 
 use rayon::prelude::*;
+
 
 fn type_of<T>(_: T) -> &'static str {
     type_name::<T>()
@@ -37,6 +38,9 @@ type Ndarray2 = ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize;
 //         // nd_tensor[[i , j , k ]] ;
 
 //     }
+
+
+
 fn matricilyze_tensor( nd_tensor  : &ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 3] >> ,
     n : usize )
     -> ArrayBase< ndarray::OwnedRepr<f64> , Dim<[usize; 2] >> 
@@ -246,9 +250,9 @@ fn parafac_decomposition_hpc(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> 
             // }
 
             match n {
-                0 => a_kt = product_khatri_rao(r_list[1].clone() , &r_list[2] ) ,
-                1 => a_kt = product_khatri_rao(r_list[0].clone() , &r_list[2] ) ,
-                2 => a_kt = product_khatri_rao(r_list[0].clone() , &r_list[1] ) ,
+                0 => a_kt = product_khatri_rao_hpc(r_list[1].clone() , &r_list[2] ) ,
+                1 => a_kt = product_khatri_rao_hpc(r_list[0].clone() , &r_list[2] ) ,
+                2 => a_kt = product_khatri_rao_hpc(r_list[0].clone() , &r_list[1] ) ,
                 _ => panic!("Valor Inválido de n usado na tentativa de Realizar o Khatri-Rao o Tensor de entrada "),
             }
 
@@ -373,22 +377,33 @@ fn parafac_decomposition(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Di
     ( r_list[0].clone() , r_list[1].clone() , r_list[2].clone() )
 }
 
-fn nd_pseudo_inverse ( nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >>  ) 
+fn nd_pseudo_inverse ( mut nd_tensor  :  ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >>  ) 
                                                 -> ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> 
-                                                
-{
-    let faer_tensor = ndarray_2_faer(nd_tensor) ;
+                      
+{   
+    const N: usize = 1_000_000;
+    // let mut nd_tensor_out  = nd_tensor.clone() ;
+
+
+    return std::thread::Builder::new()
+        .stack_size(size_of::<f64>() * N)    
+        .spawn(move ||{
+
+    let faer_tensor = ndarray_2_faer(nd_tensor.clone()) ;
     // println!("Meus valores foram convertidos ");
     let svd = faer_tensor.svd() ;
     // println!("Svd foi Calculado ! ");
     let pseudo = svd.pseudoinverse();
 
     
-    let nd_tensor = faer_2_ndarray(pseudo.clone());
+    nd_tensor = faer_2_ndarray(pseudo.clone());
     
         
 
     nd_tensor
+
+    }).unwrap().join().unwrap();
+    // nd_tensor 
 }
 
 
@@ -455,6 +470,40 @@ struct in_ts<T1:std::iter::Iterator >
 }
 //+ std::fmt::Debug
 // Produto Tendorial de Kronecker Com saída em 1 dimensão :
+
+fn product_kronecker_1d_hpc( //<T1:std::iter::Iterator  , S1 : ndarray::Data , D >( 
+    a_ts  : ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>> , 
+    b_ts  : ArrayBase<ndarray::CowRepr<f64>, ndarray::prelude::Dim<[usize; 2]>> ) 
+-> ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>> 
+// where <T1 as Iterator>:: Item : Debug + Into<f64> + Clone   , S1: RawData<Elem = f64>  , D : Dimension + ndarray::RemoveAxis ,  
+{
+// let it = a_ts.ts;
+let rows    = a_ts.shape()[0];
+// let columns = a_ts.shape()[1];
+let a_size  = rows; //*columns;
+let b_ts = b_ts.flatten();
+let mut result  = vec![ b_ts.clone() ; a_size];
+
+// let mut result  = Vec::new();
+let a_ts = a_ts; //.flatten() ;
+
+result.par_iter_mut().enumerate().for_each(|(i , ref mut res )| {
+
+   **res = a_ts[[i ]]*b_ts.clone() ;
+
+});
+
+let result = concatenate(Axis(0) , &result.iter().map(|vtor|{vtor.view()}).collect::<Vec<_>>() ).unwrap() ; 
+// let result = result
+// println!("Executado    , O resultado Final Foi :\n{:?}" ,  result  ); // .apply(.view())
+// println!("b_ts é :\n{:?}" , type_of( b_ts.flatten() ) );
+
+
+return result ; 
+}
+
+
+
 fn product_kronecker_1d<T1:std::iter::Iterator  , S1 : ndarray::Data , D >( a_ts  : in_ts<T1> , 
                                                                             b_ts  : &ArrayBase<S1, D> ) 
     -> ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>> 
@@ -494,6 +543,53 @@ where T1 : Into<f64>,
     value.into()
 
 }
+
+fn product_khatri_rao_hpc(     a_ts :  ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> , 
+    b_ts : &ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> ) 
+    ->      ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> 
+    
+{
+
+let mut result: Vec<        ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> >  = Vec::new();
+// let out : ArrayBase<ndarray::OwnedRepr<f64>, Dim<[usize; 1]>>  =  array![4.0 , 2.0 ];
+
+for (a_j , b_j) in zip(a_ts.columns() , b_ts.columns()  ){ //columns_mut()// .axis_iter_mut(Axis(0))
+//a_j.mapv_into(|vl|{vl*40.0})
+
+let inp = in_ts{ts : a_j.into_iter().map(|&x| convert_f64(x) ) } ;
+let b_size = b_j.shape()[0];
+let inp_b = b_j.to_shape((( b_size , 1), Order::RowMajor)).unwrap() ;
+
+// println!("Coluna de A :\n{:?}" , &a_j ) ;  
+
+// println!("Colunas de B :\n{:?}\n" , &b_j );
+
+// println!("O Produto Tensorial entre a Coluna A e Coluna B é : \n{:?}" , product_Kronecker_1d( inp , &inp_b ) );
+
+// let inp = in_ts{ts : a_j.into_iter().map(|&x| convert_f64(x) ) } ;
+// a_j = a_j.mapv_into(|x| convert_f64(x));
+
+// result.push(vec![ product_Kronecker_1d( inp , &inp_b ).to_shape(((4, 1), Order::RowMajor)).unwrap()  ]);
+let out: ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 1]>>   = product_kronecker_1d_hpc( a_j.to_owned() , inp_b ) ;
+let out_size = out.shape()[0] ;
+let out1 = out.to_shape((( out_size , 1), Order::RowMajor)).unwrap(); //
+let out: ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 2]>>   = out1.map(|x|convert_f64(*x)) ;
+// let out = out.collect::<Vec<_>>() ;
+
+// println!("O Resultado atual do out do Katri-Rao : \n{:?}" , &out );
+result.extend(vec![out]);
+
+
+}
+// println!("O result atual é : \n{:?}" ,  &result  );
+let result = concatenate(Axis(1) , &result.iter().map(|vtor|{vtor.view()}).collect::<Vec<_>>() ).unwrap() ;
+
+// println!("Teste do Resultado final do Produto Khatri-Rao tem o shape : \n{:?}" , &result.shape() );
+
+result
+}
+
+
 
 fn product_khatri_rao(     a_ts :  ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> , 
                            b_ts : &ArrayBase<ndarray::OwnedRepr< f64 > , ndarray::prelude::Dim<[usize; 2]>> ) 
@@ -542,7 +638,6 @@ fn product_hadamard( a_ts : &ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude
     b_ts : &ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 2]>> )-> ArrayBase<ndarray::OwnedRepr<f64>, ndarray::prelude::Dim<[usize; 2]>> {
     a_ts*b_ts 
 }// O Produto Point-Wise dos tensores A e B
-
 
 
 fn main() {
@@ -623,11 +718,25 @@ fn main() {
     
     //++++++++CÓDIGO RESPONSÁVEL POR CONTROLAR O TAMANHO DA MEMÓRIA STACK ASSOCIADA A ESSE PROGRAMA +++++++++++++
     const N: usize = 1_000_000;
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(8).stack_size( N *size_of::<f64>() ).build().unwrap();//_global().unwrap();
     
-    std::thread::Builder::new()
-        .stack_size(size_of::<f64>() * N)
-        .spawn(||{
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(8)
+        .build_global()
+        .unwrap();
+
+    // pool.install(||{
+    // rayon::scope(|s| {
+        // s.spawn(move |_|{
     
+    
+    // std::thread::Builder::new()
+    //     .stack_size(size_of::<f64>() * N)    
+    //     .spawn(||{
+
+    
+    
+    // rayon::ThreadPoolBuilder::new().num_threads(8).build_global().unwrap();
     let nd_teste = array![ [[1.0  , 2.0 , 3.0  ]   ,
                                                           [2.0  , 4.0 , 5.0  ] ] ,
 
@@ -647,13 +756,16 @@ fn main() {
 
     let before = Instant::now();
     // parafac_decomposition(nd_teste , 30 , 500 );
-    // parafac_decomposition_hpc(nd_teste , 30 , 500 );
+    parafac_decomposition_hpc(nd_teste , 30 , 500 );
     
     let after = Instant::now();
     println!("\nTime elapsed: {:?}", after.duration_since(before));
     // println!("{:?} ", &a);
     
-    }).unwrap().join().unwrap();
+    // }).unwrap().join().unwrap();
+
+// });
+// });
 //++++++++++++++++++++++++++++++++++++++++::::BANIDO:::+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
