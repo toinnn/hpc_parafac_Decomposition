@@ -1,5 +1,7 @@
 use std::fmt::{Debug  };
 use std::convert::TryFrom;
+use std::cell::RefCell;
+use std::sync::{Arc, RwLock};
 
 // use std::simd::usizex32;
 use std::{iter, usize};
@@ -13,6 +15,7 @@ use faer_ext::*;
 use ndarray::{array, concatenate, Axis , ArrayBase , RawData , RawDataClone , CowRepr , OwnedRepr };
 use ndarray::Order;
 use ndarray::prelude::*;
+use ndarray::parallel::prelude::*;
 
 use rand;
 use std::any::type_name;
@@ -479,26 +482,64 @@ fn product_kronecker_1d_hpc( //<T1:std::iter::Iterator  , S1 : ndarray::Data , D
 {
 // let it = a_ts.ts;
 let rows    = a_ts.shape()[0];
-// let columns = a_ts.shape()[1];
-let a_size  = rows; //*columns;
 let b_ts = b_ts.flatten();
-let mut result  = vec![ b_ts.clone() ; a_size];
+// let columns = a_ts.shape()[1];
 
-// let mut result  = Vec::new();
+let a_size  = rows; //*columns;
+let b_size  = b_ts.shape()[0];
+
+// let mut result  = vec![ b_ts.clone() ; a_size];
+// let mut result = Array::zeros(b_size*a_size);
+
+
+// Inicializa o resultado como um array unidimensional com zeros, envolto em um Arc e RwLock
+let result = Arc::new(RwLock::new( Array::zeros(b_size*a_size) ));
+
 let a_ts = a_ts; //.flatten() ;
 
-result.par_iter_mut().enumerate().for_each(|(i , ref mut res )| {
+// let num_threads = 8; // Ajuste conforme necessário
+//     let pool = rayon::ThreadPoolBuilder::new()
+//         .num_threads(num_threads)
+//         .build()
+//         .unwrap();
 
-   **res = a_ts[[i ]]*b_ts.clone() ;
+//     pool.install(||{
 
-});
 
-let result = concatenate(Axis(0) , &result.iter().map(|vtor|{vtor.view()}).collect::<Vec<_>>() ).unwrap() ; 
+        // a_ts.axis_chunks_iter(Axis(0), 8).enumerate().par_bridge().into_par_iter().for_each(|(i , ref mut res )| {
+        // a_ts.for_each(|(i , ref mut res )| {
+        ndarray::Zip::indexed(&a_ts).par_for_each(|i,j|{
+            let aux_res = a_ts[[i ]]*b_ts.clone() ;
+            let start = i*b_size ;
+            let end   = b_size*(i+1) ;
+        
+            
+            // Usa interior mutability para modificar o array de forma segura
+            let mut result_borrowed = result.write().unwrap() ;
+        
+            result_borrowed.slice_mut(s![start..end]).assign(&aux_res);
+            
+         
+         });
+        
+
+    // });
+
+// result.par_iter_mut().enumerate().into_par_iter().for_each(|(i , ref mut res )| {
+
+//    **res = a_ts[[i ]]*b_ts.clone() ;
+
+// });
+
+// let result = concatenate(Axis(0) , &result.iter().map(|vtor|{vtor.view()}).collect::<Vec<_>>() ).unwrap() ; 
 // let result = result
 // println!("Executado    , O resultado Final Foi :\n{:?}" ,  result  ); // .apply(.view())
 // println!("b_ts é :\n{:?}" , type_of( b_ts.flatten() ) );
 
+// Desbloqueia e utiliza o resultado final
+let result = Arc::try_unwrap(result).unwrap().into_inner().unwrap();
 
+// return *result.borrow_mut() ;
 return result ; 
 }
 
