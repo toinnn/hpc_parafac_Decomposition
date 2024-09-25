@@ -227,7 +227,7 @@ fn parafac_decomposition_hpc(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> 
                 
             // }
             // println!("A Inversa será calculada a seguir : ");
-            v = nd_pseudo_inverse(v);
+            v = nd_pseudo_inverse(v , 8 );
 
             // println!("A Inversa foi calculada : ");
             //+++++++++++++++++------TRECHO DO PRODUTO kATRI-RAO---------------++++++++++++++++++++++++++
@@ -326,7 +326,7 @@ fn parafac_decomposition(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Di
                 
             }
             // println!("A Inversa será calculada a seguir : ");
-            v = nd_pseudo_inverse(v);
+            v = nd_pseudo_inverse(v , 1 );
 
             // println!("A Inversa foi calculada : ");
             //+++++++++++++++++------TRECHO DO PRODUTO kATRI-RAO---------------++++++++++++++++++++++++++
@@ -380,7 +380,7 @@ fn parafac_decomposition(   nd_tensor  : ArrayBase< ndarray::OwnedRepr<f64> , Di
     ( r_list[0].clone() , r_list[1].clone() , r_list[2].clone() )
 }
 
-fn nd_pseudo_inverse ( mut nd_tensor  :  ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >>  ) 
+fn nd_pseudo_inverse ( mut nd_tensor  :  ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> , n_threads: usize  ) 
                                                 -> ArrayBase< ndarray::OwnedRepr<f64> , Dim< [usize; 2] >> 
                       
 {   
@@ -388,9 +388,16 @@ fn nd_pseudo_inverse ( mut nd_tensor  :  ArrayBase< ndarray::OwnedRepr<f64> , Di
     // let mut nd_tensor_out  = nd_tensor.clone() ;
 
 
-    return std::thread::Builder::new()
-        .stack_size(size_of::<f64>() * N)    
-        .spawn(move ||{
+    // return std::thread::Builder::new()
+    //     .stack_size(size_of::<f64>() * N)    
+    //     .spawn(move ||{
+    
+    // rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(n_threads).stack_size( N *size_of::<f64>() ).build().unwrap();//_global().unwrap();
+    
+    pool.install(||{
+        rayon::scope(|s| {
+            // s.spawn(move |_|{
 
     let faer_tensor = ndarray_2_faer(nd_tensor.clone()) ;
     // println!("Meus valores foram convertidos ");
@@ -399,13 +406,19 @@ fn nd_pseudo_inverse ( mut nd_tensor  :  ArrayBase< ndarray::OwnedRepr<f64> , Di
     let pseudo = svd.pseudoinverse();
 
     
+
+
+
+    
     nd_tensor = faer_2_ndarray(pseudo.clone());
     
-        
+     // }).unwrap().join().unwrap();
+});
+});       
 
     nd_tensor
 
-    }).unwrap().join().unwrap();
+    // }).unwrap().join().unwrap();
     // nd_tensor 
 }
 
@@ -508,6 +521,7 @@ let a_ts = a_ts; //.flatten() ;
 
         // a_ts.axis_chunks_iter(Axis(0), 8).enumerate().par_bridge().into_par_iter().for_each(|(i , ref mut res )| {
         // a_ts.for_each(|(i , ref mut res )| {
+        
         ndarray::Zip::indexed(&a_ts).par_for_each(|i,j|{
             let aux_res = a_ts[[i ]]*b_ts.clone() ;
             let start = i*b_size ;
@@ -519,7 +533,6 @@ let a_ts = a_ts; //.flatten() ;
         
             result_borrowed.slice_mut(s![start..end]).assign(&aux_res);
             
-         
          });
         
 
@@ -539,7 +552,7 @@ let a_ts = a_ts; //.flatten() ;
 // Desbloqueia e utiliza o resultado final
 let result = Arc::try_unwrap(result).unwrap().into_inner().unwrap();
 
-// return *result.borrow_mut() ;
+
 return result ; 
 }
 
@@ -759,10 +772,11 @@ fn main() {
     
     //++++++++CÓDIGO RESPONSÁVEL POR CONTROLAR O TAMANHO DA MEMÓRIA STACK ASSOCIADA A ESSE PROGRAMA +++++++++++++
     const N: usize = 1_000_000;
-    let pool = rayon::ThreadPoolBuilder::new().num_threads(8).stack_size( N *size_of::<f64>() ).build().unwrap();//_global().unwrap();
+    // let pool = rayon::ThreadPoolBuilder::new().num_threads(8).stack_size( N *size_of::<f64>() ).build().unwrap();//_global().unwrap();
     
     rayon::ThreadPoolBuilder::new()
         .num_threads(8)
+        .stack_size( N *size_of::<f64>() )
         .build_global()
         .unwrap();
 
@@ -796,8 +810,8 @@ fn main() {
     // println!("O tensor a matricializado : \n{:?}" , mt_ts);
 
     let before = Instant::now();
-    // parafac_decomposition(nd_teste , 30 , 500 );
-    parafac_decomposition_hpc(nd_teste , 30 , 500 );
+    parafac_decomposition(nd_teste , 30 , 500 );
+    // parafac_decomposition_hpc(nd_teste , 30 , 500 );
     
     let after = Instant::now();
     println!("\nTime elapsed: {:?}", after.duration_since(before));

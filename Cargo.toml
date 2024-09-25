@@ -8,7 +8,7 @@ edition = "2021"
 ndarray =   { version = "0.16.1", features = ["rayon"] }
 rand = "*"
 
-faer = "*"
+faer = { version = "*", features = ["rayon"] }
 faer-ext= "*"
 
 #mpi = "0.8.0"
